@@ -72,6 +72,25 @@ Required env vars: `BREVO_API_KEY`, `BREVO_SMS_SENDER`, optional
 `public/lib/php/twilio/` is no longer loaded; you can delete it whenever it's
 convenient.
 
+## Customer-facing surface
+
+Coinwink renders a read-only **AgoraIQ Signals** page so users see the live
+Agoraiq feed alongside their existing Coinwink alerts:
+
+- Page route: `/signals` (Vue) → `resources/js/views/AgoraiqSignals.vue`
+- API route: `GET /api/agoraiq/signals?limit=20` (auth + verified)
+- Controller: `App\Http\Controllers\AgoraiqSignalsController`
+
+The controller mirrors Agoraiq's `toResolvedView` (api/src/models/signal.js):
+public-tier-safe fields only — `symbol`, `direction`, `status`, `confidence`,
+`result`, `created_at`. Entry, stop, and target prices are intentionally
+omitted; if Coinwink ever needs to expose them to premium users, layer a
+`cw_settings.subs == 1` check inside the controller before returning the
+extra columns.
+
+The query filters to `source IN ('scanner', 'provider')` so we only show
+public/published signals, never user-private ones from Agoraiq's bot path.
+
 ## Adding a new Agoraiq read
 
 1. Confirm the table is owned by Agoraiq and you only need to read it.

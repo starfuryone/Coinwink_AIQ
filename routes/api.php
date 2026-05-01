@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 
 use Illuminate\Support\Facades\Mail;
 
+use App\Http\Controllers\AgoraiqSignalsController;
 use App\Models\GetAppData;
 
 /*
@@ -38,6 +39,12 @@ Route::get('/app_data', function () {
     $cmc = DB::table('cw_data_cmc')->where('ID', '=', 1)->value('json');
     return (array( 'cmc' => json_decode($cmc) ));    
 });
+
+
+// Read-only window into Agoraiq-Signals. Routes here MUST stay GET-only;
+// the underlying connection (`agoraiq`) blocks writes regardless.
+Route::middleware(['auth:sanctum', 'verified'])
+    ->get('/agoraiq/signals', [AgoraiqSignalsController::class, 'recent']);
 
 
 Route::middleware(['auth:sanctum', 'verified'])->get('/portfolio', function () {
