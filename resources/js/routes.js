@@ -25,6 +25,8 @@ import Press from './pages/Press.vue';
 import Contacts from './pages/Contacts.vue';
 import Pricing from './pages/Pricing.vue';
 
+import AgoraiqSignals from './views/AgoraiqSignals.vue';
+
 
 export default {
     routes: [
@@ -200,6 +202,15 @@ export default {
             name: 'Pricing',
             meta: {
                 title: 'Coinwink - Pricing'
+            },
+        },
+
+        {
+            path: '/signals',
+            component: AgoraiqSignals,
+            name: 'AgoraiqSignals',
+            meta: {
+                title: 'Coinwink - AgoraIQ Signals'
             },
         },
 

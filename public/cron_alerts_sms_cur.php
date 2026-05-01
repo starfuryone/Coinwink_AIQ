@@ -27,11 +27,10 @@ if (!$cron_alerts_sms_cur) {
 // Wait for new CMC data
 sleep(7);
 
-// Load Twilio
+// Load Brevo SMS client
 include_once 'coinwink_auth_sms.php';
-include_once 'lib/php/twilio/autoload.php'; // Loads the library 
-use Twilio\Rest\Client;
-$client = new Client($account_sid, $auth_token);
+include_once 'coinwink_auth_brevo.php';
+include_once 'lib/php/brevo_sms.php';
 
 
 
@@ -39,7 +38,6 @@ $client = new Client($account_sid, $auth_token);
 function sendSMS($coin_ID, $user_ID, $phone, $coin, $symbol, $amount, $currency, $b_or_a) {
 
     global $conn;
-    global $client;
 
     # SMS destination number
     $dst = $phone;
@@ -59,7 +57,12 @@ function sendSMS($coin_ID, $user_ID, $phone, $coin, $symbol, $amount, $currency,
     global $from_nr_2;
     $from_nr_end = substr($dst, -4);
     if (in_array($from_nr_end, $to_nrs)) {
-        $from_nr = $from_nr_2;
+        // Brevo has no per-message sender override at this layer; we keep the
+        // legacy hook so the cron can still observe which number group the
+        // recipient belongs to if Coinwink ever needs that signal again.
+        $GLOBALS['brevo_sms_sender'] = $from_nr_2;
+    } else {
+        $GLOBALS['brevo_sms_sender'] = $from_nr;
     }
 
     // 1. Start with paid
@@ -67,12 +70,9 @@ function sendSMS($coin_ID, $user_ID, $phone, $coin, $symbol, $amount, $currency,
 
         $status = 'sent';
 
-        // Twilio paid
+        // Brevo paid
         try {
-            $messages = $client->messages->create($dst, array( 
-                'From' => $from_nr,  
-                'Body' => $text,      
-            ));
+            cw_send_brevo_sms($dst, $text);
         } catch (Exception $e) {
             echo ("Error\n");
             $status = 'error';

@@ -31,4 +31,10 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'brevo' => [
+        'api_key' => env('BREVO_API_KEY'),
+        'sms_sender' => env('BREVO_SMS_SENDER', 'Coinwink'),
+        'sms_endpoint' => env('BREVO_SMS_ENDPOINT', 'https://api.brevo.com/v3/transactionalSMS/sms'),
+    ],
+
 ];

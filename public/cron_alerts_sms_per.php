@@ -27,19 +27,17 @@ if (!$cron_alerts_sms_per) {
 // Wait for new CMC data
 sleep(7);
 
-// Load Twilio
+// Load Brevo SMS client
 include_once 'coinwink_auth_sms.php';
-include_once 'lib/php/twilio/autoload.php'; // Loads the library 
-use Twilio\Rest\Client;
-$client = new Client($account_sid, $auth_token);
+include_once 'coinwink_auth_brevo.php';
+include_once 'lib/php/brevo_sms.php';
 
 
 
 // SMS template and sending
 function sendSMS($coin_ID, $user_ID, $phone, $coin, $symbol, $currency, $change, $i_or_d, $period) {
-    
+
     global $conn;
-    global $client;
 
     # SMS destination number
     $dst = $phone;
@@ -66,7 +64,9 @@ function sendSMS($coin_ID, $user_ID, $phone, $coin, $symbol, $currency, $change,
     global $from_nr_2;
     $from_nr_end = substr($dst, -4);
     if (in_array($from_nr_end, $to_nrs)) {
-        $from_nr = $from_nr_2;
+        $GLOBALS['brevo_sms_sender'] = $from_nr_2;
+    } else {
+        $GLOBALS['brevo_sms_sender'] = $from_nr;
     }
 
     // 1. Start with paid
@@ -74,12 +74,9 @@ function sendSMS($coin_ID, $user_ID, $phone, $coin, $symbol, $currency, $change,
 
         $status = 'sent';
 
-        // Twilio paid
+        // Brevo paid
         try {
-            $messages = $client->messages->create($dst, array( 
-                'From' => $from_nr,  
-                'Body' => $text,      
-            ));
+            cw_send_brevo_sms($dst, $text);
         } catch (Exception $e) {
             echo ("Error\n");
             $status = 'error';
