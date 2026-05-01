@@ -103,6 +103,28 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        // Read-only view into the Agoraiq-Signals Postgres DB. Coinwink runs as
+        // a separate module; this connection must never write. Enforcement is
+        // belt-and-braces: a read-only DB role at the Postgres side, a session
+        // GUC on connect, and a query listener (AppServiceProvider) that
+        // rejects non-SELECT statements.
+        'agoraiq' => [
+            'driver' => 'pgsql',
+            'host' => env('AGORAIQ_DB_HOST', '127.0.0.1'),
+            'port' => env('AGORAIQ_DB_PORT', '5432'),
+            'database' => env('AGORAIQ_DB_DATABASE', ''),
+            'username' => env('AGORAIQ_DB_USERNAME', ''),
+            'password' => env('AGORAIQ_DB_PASSWORD', ''),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => env('AGORAIQ_DB_SCHEMA', 'public'),
+            'sslmode' => env('AGORAIQ_DB_SSLMODE', 'prefer'),
+            'options' => [
+                \PDO::ATTR_EMULATE_PREPARES => false,
+            ],
+        ],
+
     ],
 
     /*
