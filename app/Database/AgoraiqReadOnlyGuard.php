@@ -62,6 +62,12 @@ class AgoraiqReadOnlyGuard
 
     private static function ensureSessionReadOnly(Connection $connection): void
     {
+        // The session GUC is Postgres-specific. If `agoraiq` is misconfigured
+        // (or pointed at a different driver in tests), skip silently — the
+        // verb check above is still in force.
+        if ($connection->getDriverName() !== 'pgsql') {
+            return;
+        }
         $pdo = $connection->getPdo();
         self::$sessionInitialised ??= new WeakMap();
         if (isset(self::$sessionInitialised[$pdo])) {

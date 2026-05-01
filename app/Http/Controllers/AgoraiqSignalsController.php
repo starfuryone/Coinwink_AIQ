@@ -29,7 +29,9 @@ class AgoraiqSignalsController extends Controller
         $limit = (int) $request->query('limit', self::DEFAULT_LIMIT);
         $limit = max(1, min(self::MAX_LIMIT, $limit));
 
-        $rows = DB::connection(AgoraiqReadOnlyGuard::CONNECTION)
+        $conn = DB::connection(AgoraiqReadOnlyGuard::CONNECTION);
+
+        $rows = $conn
             ->table('signals')
             ->select([
                 'id', 'symbol', 'type', 'direction', 'confidence', 'status',
@@ -41,8 +43,18 @@ class AgoraiqSignalsController extends Controller
             ->limit($limit)
             ->get();
 
+        // Surface the freshness of the upstream feed so the UI can warn
+        // users when Agoraiq's scanner is stalled. Cheap aggregate, separate
+        // query so it stays correct even when the page is filtered.
+        $lastSignalAt = (string) $conn
+            ->table('signals')
+            ->whereIn('source', self::PUBLIC_SOURCES)
+            ->max('created_at');
+
         return response()->json([
             'signals' => $rows->map(fn ($r) => $this->toResolvedView((array) $r))->values(),
+            'last_signal_at' => $lastSignalAt !== '' ? $lastSignalAt : null,
+            'server_time' => now()->toIso8601String(),
         ]);
     }
 

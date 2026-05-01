@@ -10,6 +10,8 @@
     const signals = ref([]);
     const loading = ref(true);
     const error = ref(null);
+    const lastSignalAt = ref(null);
+    const serverTime = ref(null);
 
     function loadSignals() {
         loading.value = true;
@@ -19,6 +21,8 @@
             url: '/api/agoraiq/signals?limit=20',
             success: function (data) {
                 signals.value = (data && data.signals) ? data.signals : [];
+                lastSignalAt.value = data ? data.last_signal_at : null;
+                serverTime.value = data ? data.server_time : null;
                 loading.value = false;
             },
             error: function (xhr) {
@@ -28,6 +32,28 @@
                 loading.value = false;
             },
         });
+    }
+
+    // Returns { label, level } where level is 'fresh' | 'warn' | 'stale'.
+    // Thresholds match operational reality: scanner cycles ~every 10s, so
+    // anything past 15min is unusual; past 60min the feed is effectively
+    // dead and users should be told visibly.
+    function staleness() {
+        if (!lastSignalAt.value) return null;
+        const last = new Date(lastSignalAt.value).getTime();
+        const now = serverTime.value ? new Date(serverTime.value).getTime() : Date.now();
+        if (isNaN(last) || isNaN(now)) return null;
+        const ageMs = Math.max(0, now - last);
+        const mins = Math.floor(ageMs / 60000);
+        let level = 'fresh';
+        if (mins >= 60) level = 'stale';
+        else if (mins >= 15) level = 'warn';
+        let label;
+        if (mins < 1) label = 'Last signal: just now';
+        else if (mins < 60) label = `Last signal: ${mins}m ago`;
+        else if (mins < 1440) label = `Last signal: ${Math.floor(mins / 60)}h ago`;
+        else label = `Last signal: ${Math.floor(mins / 1440)}d ago`;
+        return { label, level };
     }
 
     function statusClass(status) {
@@ -66,6 +92,14 @@
                         Live trading signals from
                         <b>AgoraIQ</b>. Read-only feed — entry, stop, and
                         targets are reserved for AgoraIQ subscribers.
+                    </div>
+
+                    <div v-if="!loading && !error && staleness()"
+                         :class="'sig-freshness sig-freshness-' + staleness().level"
+                         style="margin-top:14px;">
+                        <span v-if="staleness().level === 'stale'">⚠ Feed appears offline. </span>
+                        <span v-else-if="staleness().level === 'warn'">Feed is quiet. </span>
+                        {{ staleness().label }}
                     </div>
 
                     <div style="height:20px;"></div>
@@ -152,4 +186,14 @@
     .sig-win     { background:#e6f7ec; color:#1d7a3a; }
     .sig-loss    { background:#fdecec; color:#a32424; }
     .sig-neutral { background:#eee;    color:#444;    }
+
+    .sig-freshness {
+        display:inline-block;
+        padding:6px 12px;
+        border-radius:6px;
+        font-size:13px;
+    }
+    .sig-freshness-fresh { background:#e6f7ec; color:#1d7a3a; }
+    .sig-freshness-warn  { background:#fff7e0; color:#8a6100; }
+    .sig-freshness-stale { background:#fdecec; color:#a32424; font-weight:600; }
 </style>
