@@ -8,6 +8,8 @@ The new Coinwink V2 includes some code from the V1 that was retained for its opt
 
 #### Quickstart ####
 
+For a full step-by-step setup (including database, cron jobs, virtual host, and production notes), see [INSTALL.md](INSTALL.md).
+
 - Clone this repository.
 - Run `composer install` and `npm install` commands.
 - Rename `.env.example` file to `.env` and update it with your credentials. You need to provide at least the `DB_DATABASE` value for the app to work.
