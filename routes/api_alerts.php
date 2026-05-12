@@ -1,50 +1,57 @@
 <?php
 
+use App\Mail\PlainTextMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 
-// 
+//
 //  EMAIL - CURRENCY
-// 
-Route::post('/alert_email_cur', function (Request $request) {
+//
+Route::middleware('throttle:5,1')->post('/alert_email_cur', function (Request $request) {
+
+    $validated = $request->validate([
+        'coinName'    => 'required|string|max:64',
+        'coinId'      => 'required|string|max:64',
+        'coinSymbol'  => 'required|string|max:16',
+        'belowPrice'  => 'nullable|string|max:32',
+        'belowCur'    => 'nullable|string|max:8',
+        'abovePrice'  => 'nullable|string|max:32',
+        'aboveCur'    => 'nullable|string|max:8',
+        'email'       => 'required|email|max:191',
+    ]);
 
     // Get user IP for rate limiter
-    if (isset($_SERVER["HTTP_CF_CONNECTING_IP"])) { 
+    if (isset($_SERVER["HTTP_CF_CONNECTING_IP"])) {
         $ip = $_SERVER["HTTP_CF_CONNECTING_IP"];
     }
     else {
         $ip = 'local';
     }
-    
+
     $req_count = DB::table('cw_rate_limiter_alerts')->where('ip', $ip)->count();
 
     if ($req_count > 10) {
-        return("Limit error: IP");
+        return response()->json(['error' => 'Limit error: IP'], 429);
     }
 
-    $coin = htmlspecialchars($request['coinName']);
-    $coin_id = htmlspecialchars($request['coinId']);
-    $symbol = htmlspecialchars($request['coinSymbol']);
-    if ($request['belowPrice'] != null) {
-        $below = str_replace(',', '.', htmlspecialchars($request['belowPrice']));
+    $coin = htmlspecialchars($validated['coinName']);
+    $coin_id = htmlspecialchars($validated['coinId']);
+    $symbol = htmlspecialchars($validated['coinSymbol']);
+    if (!empty($validated['belowPrice'])) {
+        $below = str_replace(',', '.', htmlspecialchars($validated['belowPrice']));
     }
     else {
         $below = "";
     }
-    $below_currency = htmlspecialchars($request['belowCur']);
-    if ($request['abovePrice'] != null) {
-        $above = str_replace(',', '.', htmlspecialchars($request['abovePrice']));
+    $below_currency = htmlspecialchars($validated['belowCur'] ?? '');
+    if (!empty($validated['abovePrice'])) {
+        $above = str_replace(',', '.', htmlspecialchars($validated['abovePrice']));
     }
     else {
         $above = "";
     }
-    $above_currency = htmlspecialchars($request['aboveCur']);
-    $email = htmlspecialchars($request['email']);
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo("Email error");
-        exit();
-    }
+    $above_currency = htmlspecialchars($validated['aboveCur'] ?? '');
+    $email = $validated['email'];
 
     // Get alerts count for user without acc
     // $alerts_count_cur = $wpdb->get_var( "SELECT COUNT(*) FROM cw_alerts_email_cur WHERE email = '".$email."'" );
@@ -53,10 +60,9 @@ Route::post('/alert_email_cur', function (Request $request) {
     $alerts_count_per = DB::table('cw_alerts_email_per')->where('email', $email)->count();
     $alerts_count = $alerts_count_cur + $alerts_count_per;
     if ($alerts_count >= 5) {
-        echo("Limit error");
-        exit();
+        return response()->json(['error' => 'Limit error'], 429);
     }
-    
+
     $unique_id = DB::table('cw_settings')->where('email', $email)->value('unique_id');
     if (!$unique_id) {
         $unique_id = DB::table('cw_alerts_email_cur')->where('email', $email)->value('unique_id');
@@ -66,7 +72,7 @@ Route::post('/alert_email_cur', function (Request $request) {
                 $unique_id = uniqid();
             }
         }
-    } 
+    }
 
     $timestamp = date("Y-m-d H:i:s");
 
@@ -84,7 +90,7 @@ Route::post('/alert_email_cur', function (Request $request) {
     'unique_id' => $unique_id,
     'user_id' => 0,
     'timestamp' => $timestamp )) === FALSE) {
-        echo "DB Error";
+        return response()->json(['error' => 'DB Error'], 500);
     }
     else {
         $to = $email;
@@ -110,9 +116,7 @@ You can manage your alert(-s) with a free Coinwink account: https://coinwink.com
 Wink,
 Coinwink';
 
-        Mail::raw($message, function ($message) use ($subject, $to) {
-            $message->subject($subject)->to($to);
-        });
+        Mail::to($to)->queue(new PlainTextMail($subject, $message));
 
     }
 
@@ -122,13 +126,13 @@ Coinwink';
         'unique_id' => $unique_id
     ));
 
-    return('success');
+    return response()->json(['status' => 'success']);
 
 });
 
-// 
+//
 //  EMAIL - CURRENCY - ACC
-// 
+//
 Route::middleware(['auth:sanctum', 'verified'])->post('/alert_email_cur_acc', function (Request $request) {
     $id_user = Auth::user()->id;
 
@@ -169,14 +173,12 @@ Route::middleware(['auth:sanctum', 'verified'])->post('/alert_email_cur_acc', fu
         // Special users
         if ($user_ID == 24301 || $user_ID == 19762 || $user_ID == 7929) {
             if ($alerts_count >= 10) {
-                echo("Limit error");
-                exit();
+                return response()->json(['error' => 'Limit error'], 429);
             }
         }
         else if ($alerts_count >= 5) {
         // if ($alerts_count >= 10) {
-            echo("Limit error");
-            exit();
+            return response()->json(['error' => 'Limit error'], 429);
         }
     }
 
@@ -206,10 +208,26 @@ Route::middleware(['auth:sanctum', 'verified'])->post('/alert_email_cur_acc', fu
 //
 // EMAIL - PERCENTAGE
 //
-Route::post('/alert_email_per', function (Request $request) {
+Route::middleware('throttle:5,1')->post('/alert_email_per', function (Request $request) {
+
+    $validated = $request->validate([
+        'coinName'       => 'required|string|max:64',
+        'coinId'         => 'required|string|max:64',
+        'coinSymbol'     => 'required|string|max:16',
+        'price_set_btc'  => 'nullable|string|max:32',
+        'price_set_usd'  => 'nullable|string|max:32',
+        'price_set_eth'  => 'nullable|string|max:32',
+        'plus_percent'   => 'nullable|string|max:16',
+        'plus_change'    => 'nullable|string|max:32',
+        'plus_compared'  => 'nullable|string|max:32',
+        'minus_percent'  => 'nullable|string|max:16',
+        'minus_change'   => 'nullable|string|max:32',
+        'minus_compared' => 'nullable|string|max:32',
+        'email'          => 'required|email|max:191',
+    ]);
 
     // Get user IP for rate limiter
-    if (isset($_SERVER["HTTP_CF_CONNECTING_IP"])) { 
+    if (isset($_SERVER["HTTP_CF_CONNECTING_IP"])) {
         $ip = $_SERVER["HTTP_CF_CONNECTING_IP"];
     }
     else {
@@ -219,48 +237,42 @@ Route::post('/alert_email_per', function (Request $request) {
     $req_count = DB::table('cw_rate_limiter_alerts')->where('ip', $ip)->count();
 
     if ($req_count > 10) {
-        return("Limit error: IP");
+        return response()->json(['error' => 'Limit error: IP'], 429);
     }
 
-    $coin = htmlspecialchars($request['coinName']);
-    $coin_id = htmlspecialchars($request['coinId']);
-    $symbol = htmlspecialchars($request['coinSymbol']);
+    $coin = htmlspecialchars($validated['coinName']);
+    $coin_id = htmlspecialchars($validated['coinId']);
+    $symbol = htmlspecialchars($validated['coinSymbol']);
 
-    $price_set_btc = htmlspecialchars($request['price_set_btc']);
-    $price_set_usd = htmlspecialchars($request['price_set_usd']);
-    $price_set_eth = htmlspecialchars($request['price_set_eth']);
+    $price_set_btc = htmlspecialchars($validated['price_set_btc'] ?? '');
+    $price_set_usd = htmlspecialchars($validated['price_set_usd'] ?? '');
+    $price_set_eth = htmlspecialchars($validated['price_set_eth'] ?? '');
     $search  = array(',', '-', '+');
     $replace = array('.', '', '');
-    if ($request['plus_percent'] != null) {
-        $plus_percent = str_replace($search, $replace, htmlspecialchars($request['plus_percent']));
+    if (!empty($validated['plus_percent'])) {
+        $plus_percent = str_replace($search, $replace, htmlspecialchars($validated['plus_percent']));
     }
     else {
         $plus_percent = "";
     }
-    $plus_change = htmlspecialchars($request['plus_change']);
-    $plus_compared = htmlspecialchars($request['plus_compared']);
-    if ($request['minus_percent'] != null) {
-        $minus_percent = str_replace($search, $replace, htmlspecialchars($request['minus_percent']));
+    $plus_change = htmlspecialchars($validated['plus_change'] ?? '');
+    $plus_compared = htmlspecialchars($validated['plus_compared'] ?? '');
+    if (!empty($validated['minus_percent'])) {
+        $minus_percent = str_replace($search, $replace, htmlspecialchars($validated['minus_percent']));
     }
     else {
         $minus_percent = "";
     }
-    $minus_change = htmlspecialchars($request['minus_change']);
-    $minus_compared = htmlspecialchars($request['minus_compared']);
+    $minus_change = htmlspecialchars($validated['minus_change'] ?? '');
+    $minus_compared = htmlspecialchars($validated['minus_compared'] ?? '');
 
-    $email = htmlspecialchars($request['email']);
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo("Email error");
-        exit();
-    }
+    $email = $validated['email'];
 
     $alerts_count_cur = DB::table('cw_alerts_email_cur')->where('email', $email)->count();
     $alerts_count_per = DB::table('cw_alerts_email_per')->where('email', $email)->count();
     $alerts_count = $alerts_count_cur + $alerts_count_per;
     if ($alerts_count >= 5) {
-        echo("Limit error");
-        exit();
+        return response()->json(['error' => 'Limit error'], 429);
     }
 
     $unique_id = DB::table('cw_settings')->where('email', $email)->value('unique_id');
@@ -295,7 +307,7 @@ Route::post('/alert_email_per', function (Request $request) {
     'unique_id' => $unique_id,
     'user_id' => 0,
     'timestamp' => $timestamp )) === FALSE) {
-        return "Error";
+        return response()->json(['error' => 'DB Error'], 500);
     }
 
     $to = $email;
@@ -308,9 +320,7 @@ You can manage your alert(-s) with a free Coinwink account: https://coinwink.com
 Wink,
 Coinwink';
 
-    Mail::raw($message, function ($message) use ($subject, $to) {
-        $message->subject($subject)->to($to);
-    });
+    Mail::to($to)->queue(new PlainTextMail($subject, $message));
 
 
     DB::table('cw_rate_limiter_alerts')->insert(array(
@@ -319,7 +329,7 @@ Coinwink';
         'unique_id' => $unique_id
     ));
 
-    return('success');
+    return response()->json(['status' => 'success']);
 
 });
 
@@ -376,14 +386,12 @@ Route::post('/alert_email_per_acc', function (Request $request) {
         // Special users
         if ($user_ID == 24301 || $user_ID == 19762 || $user_ID == 7929) {
             if ($alerts_count >= 10) {
-                echo("Limit error");
-                exit();
+                return response()->json(['error' => 'Limit error'], 429);
             }
         }
         else if ($alerts_count >= 5) {
         // if ($alerts_count >= 10) {
-            echo("Limit error");
-            exit();
+            return response()->json(['error' => 'Limit error'], 429);
         }
     }
 
@@ -409,7 +417,7 @@ Route::post('/alert_email_per_acc', function (Request $request) {
     'unique_id' => $unique_id,
     'user_id' => $user_ID,
     'timestamp' => $timestamp ))===FALSE){
-        echo "Error";
+        return response()->json(['error' => 'DB Error'], 500);
     }
 
     return('success');
@@ -446,8 +454,7 @@ Route::post('/alert_sms_cur', function (Request $request) {
 		// Check if subscription is active
         $subs = DB::table('cw_settings')->where('user_ID', $user_ID)->value('subs');
 		if ($subs == 0) {
-            return("Subs error");
-            exit();
+            return response()->json(['error' => 'Subs error'], 402);
 		}
 
         // Save phone for later use
@@ -513,8 +520,7 @@ Route::post('/alert_sms_per', function (Request $request) {
     // Check if subscription is active
     $subs = DB::table('cw_settings')->where('user_ID', $user_ID)->value('subs');
     if ($subs == 0) {
-        return("Subs error");
-        exit();
+        return response()->json(['error' => 'Subs error'], 402);
     }
 
     // Save phone for later use
@@ -591,8 +597,7 @@ Route::middleware(['auth:sanctum', 'verified'])->post('/alert_tg_cur', function 
         $alerts_count = $alerts_count_tg_cur + $alerts_count_tg_per;
         
         if ($alerts_count >= 5) {
-            echo("Limit error");
-            exit();
+            return response()->json(['error' => 'Limit error'], 429);
         }
     }
 
@@ -674,8 +679,7 @@ Route::post('/alert_tg_per', function (Request $request) {
         $alerts_count = $alerts_count_tg_cur + $alerts_count_tg_per;
         
         if ($alerts_count >= 5) {
-            echo("Limit error");
-            exit();
+            return response()->json(['error' => 'Limit error'], 429);
         }
     }
 
@@ -698,7 +702,7 @@ Route::post('/alert_tg_per', function (Request $request) {
     'tg_user' => $tg_user,
     'user_id' => $user_ID,
     'timestamp' => $timestamp ))===FALSE){
-        echo "Error";
+        return response()->json(['error' => 'DB Error'], 500);
     }
 
     return('success');
@@ -736,11 +740,10 @@ Route::middleware(['auth:sanctum', 'verified'])->get('/manage_alerts_acc', funct
     $alerts['tg_alerts_per'] = $tg_alerts_per;
 
     if (sizeof($email_alerts) + sizeof($email_alerts_per) + sizeof($sms_alerts) + sizeof($sms_alerts_per) + sizeof($tg_alerts) + sizeof($tg_alerts_per) == 0) {
-        echo ("zero_alerts");
+        return response()->json(['status' => 'zero_alerts']);
     }
-    else {
-        echo json_encode($alerts);
-    }
+
+    return response()->json($alerts);
 });
 
 

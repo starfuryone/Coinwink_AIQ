@@ -1,11 +1,10 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-
-use Illuminate\Support\Facades\Mail;
-
+use App\Mail\PlainTextMail;
 use App\Models\GetAppData;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,11 +50,16 @@ Route::middleware(['auth:sanctum', 'verified'])->get('/portfolio', function () {
 
 
 Route::middleware(['auth:sanctum', 'verified'])->post('/update_portfolio', function (Request $request) {
-    $id_user = Auth::user()->id;   
+    $validated = $request->validate([
+        'data' => 'required|string|max:1000000',
+    ]);
+    $id_user = Auth::user()->id;
 
     DB::table('cw_settings')
     ->where('user_ID', $id_user)
-    ->update(['portfolio' => $request['data']]);
+    ->update(['portfolio' => $validated['data']]);
+
+    return response()->json(['status' => 'success']);
 });
 
 
@@ -70,96 +74,129 @@ Route::middleware(['auth:sanctum', 'verified'])->get('/watchlist', function () {
 
 
 Route::middleware(['auth:sanctum', 'verified'])->post('/update_watchlist', function (Request $request) {
-    $id_user = Auth::user()->id;   
+    $validated = $request->validate([
+        'data' => 'required|string|max:1000000',
+    ]);
+    $id_user = Auth::user()->id;
 
     DB::table('cw_settings')
     ->where('user_ID', $id_user)
-    ->update(['watchlist' => $request['data']]);
+    ->update(['watchlist' => $validated['data']]);
+
+    return response()->json(['status' => 'success']);
 });
 
 
 // Watchlist right column view
 Route::middleware(['auth:sanctum', 'verified'])->post('/config_conf_w', function (Request $request) {
-    $id_user = Auth::user()->id;   
+    $validated = $request->validate([
+        'conf_w' => 'required|string|max:255',
+    ]);
+    $id_user = Auth::user()->id;
 
     DB::table('cw_settings')
     ->where('user_ID', $id_user)
-    ->update(['conf_w' => $request['conf_w']]);
+    ->update(['conf_w' => $validated['conf_w']]);
+
+    return response()->json(['status' => 'success']);
 });
 
 
 Route::middleware(['auth:sanctum', 'verified'])->post('/config_cur_p', function (Request $request) {
-    $id_user = Auth::user()->id;   
+    $validated = $request->validate([
+        'cur_p' => 'required|string|max:16',
+    ]);
+    $id_user = Auth::user()->id;
 
     DB::table('cw_settings')
     ->where('user_ID', $id_user)
-    ->update(['cur_p' => $request['cur_p']]);
+    ->update(['cur_p' => $validated['cur_p']]);
+
+    return response()->json(['status' => 'success']);
 });
 
 
 Route::middleware(['auth:sanctum', 'verified'])->post('/config_cur_w', function (Request $request) {
-    $id_user = Auth::user()->id;   
+    $validated = $request->validate([
+        'cur_w' => 'required|string|max:16',
+    ]);
+    $id_user = Auth::user()->id;
 
     DB::table('cw_settings')
     ->where('user_ID', $id_user)
-    ->update(['cur_w' => $request['cur_w']]);
+    ->update(['cur_w' => $validated['cur_w']]);
+
+    return response()->json(['status' => 'success']);
 });
 
 
 Route::middleware(['auth:sanctum', 'verified'])->post('/config_cur_main', function (Request $request) {
-    $id_user = Auth::user()->id;   
+    $validated = $request->validate([
+        'cur_main' => 'required|string|max:16',
+    ]);
+    $id_user = Auth::user()->id;
 
     DB::table('cw_settings')
     ->where('user_ID', $id_user)
-    ->update(['cur_main' => $request['cur_main']]);
+    ->update(['cur_main' => $validated['cur_main']]);
+
+    return response()->json(['status' => 'success']);
 });
 
 
 // Save currently opened tab
 Route::middleware(['auth:sanctum', 'verified'])->post('/cw_tab', function (Request $request) {
-    $id_user = Auth::user()->id;   
-    $cw_tab = $request['cw_tab'];
-    
-    if ($cw_tab == 'email' || $cw_tab == 'email-per' || $cw_tab == 'telegram' || $cw_tab == 'telegram-per' || $cw_tab == 'sms' || $cw_tab == 'sms-per') {
-        DB::table('cw_settings')
-        ->where('user_ID', $id_user)
-        ->update(['cw_tab' => $cw_tab]);
-    }
+    $validated = $request->validate([
+        'cw_tab' => 'required|string|in:email,email-per,telegram,telegram-per,sms,sms-per',
+    ]);
+    $id_user = Auth::user()->id;
+
+    DB::table('cw_settings')
+    ->where('user_ID', $id_user)
+    ->update(['cw_tab' => $validated['cw_tab']]);
+
+    return response()->json(['status' => 'success']);
 });
 
 
 // CryptoConverter SHOW-HIDE
 Route::middleware(['auth:sanctum', 'verified'])->post('/cryptocurrency_converter_expanded', function (Request $request) {
+    $validated = $request->validate([
+        'expanded' => 'required|boolean',
+    ]);
     $id_user = Auth::user()->id;
-    $expanded = $request['expanded'];
 
-    DB::table('cw_settings')->where('user_ID', $id_user)->update(array('conv_exp' => $expanded));
-    echo('success');
+    DB::table('cw_settings')->where('user_ID', $id_user)->update(['conv_exp' => $validated['expanded']]);
+
+    return response()->json(['status' => 'success']);
 });
 
 
 
 // ACCOUNT FEEDBACK
 Route::middleware(['auth:sanctum', 'verified'])->post('/feedback', function (Request $request) {
+    $validated = $request->validate([
+        'feedback' => 'required|string|max:5000',
+    ]);
     $id_user = Auth::user()->id;
-    $feedback = htmlspecialchars($request['feedback']);
+    $feedback = htmlspecialchars($validated['feedback']);
 
-    // return('f:'.$feedback);
+    $inserted = DB::table('cw_feedback')->insert([
+        'message' => $feedback,
+        'user_id' => $id_user,
+    ]);
 
-    if (DB::table('cw_feedback')->insert(array('message' => $feedback, 'user_id' => $id_user)) === FALSE) {
-        echo('error');
-    }
-    else {
-        echo('success');
+    if ($inserted === false) {
+        return response()->json(['status' => 'error'], 500);
     }
 
     $user_email = DB::table('users')->where('id', $id_user)->value('email');
-    
-    // EMAIL NOTICE TO ADMIN
-    $message = "User ID: " . $id_user . "\nUser email: " . $user_email . "\n\n" . $feedback;
-    Mail::raw($message, function ($message) use ($id_user) {
-        $message->subject("New Feedback Received: " . $id_user)->to("feedback@coinwink.com");
-    });
 
-    exit();
+    // EMAIL NOTICE TO ADMIN — queued so the response is not blocked on SMTP.
+    $message = "User ID: " . $id_user . "\nUser email: " . $user_email . "\n\n" . $feedback;
+    Mail::to('feedback@coinwink.com')->queue(
+        new PlainTextMail('New Feedback Received: ' . $id_user, $message)
+    );
+
+    return response()->json(['status' => 'success']);
 });

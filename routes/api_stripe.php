@@ -1,5 +1,6 @@
 <?php
 
+use App\Mail\PlainTextMail;
 use Illuminate\Support\Facades\Mail;
 
 // 
@@ -34,12 +35,11 @@ Route::middleware(['auth:sanctum', 'verified'])->post('/stripe_order_100_credits
 
     // EMAIL NOTICE TO ADMIN
     $message = "User started the 100 extra credits checkout session ID: " .  $session['id'];
-    Mail::raw($message, function ($message) use ($user_id) {
-        $message->subject("100 credits checkout user ID: " . $user_id)->to(env('ADMIN_EMAIL'));
-    });
+    Mail::to(env('ADMIN_EMAIL'))->queue(
+        new PlainTextMail('100 credits checkout user ID: ' . $user_id, $message)
+    );
 
-    echo(json_encode($session));
-    exit;
+    return response()->json($session);
 });
 
 
@@ -59,8 +59,7 @@ Route::middleware(['auth:sanctum', 'verified'])->post('/stripe_order', function 
 	// $orders_count = $wpdb->get_var("SELECT COUNT(*) FROM cw_stripe_orders WHERE user_id = $user_id");
     $orders_count = DB::table('cw_stripe_orders')->where('user_id', $user_id)->count();
 	if ($orders_count > 1000) {
-		echo("Too many attempts. Please contact support.");
-		exit();
+		return response()->json(['error' => 'Too many attempts. Please contact support.'], 429);
 	}
 
     $session = \Stripe\Checkout\Session::create([
@@ -82,12 +81,11 @@ Route::middleware(['auth:sanctum', 'verified'])->post('/stripe_order', function 
 
     // EMAIL NOTICE TO ADMIN
     $message = "User started the checkout session ID: " .  $session['id'];
-    Mail::raw($message, function ($message) use ($user_id) {
-        $message->subject("New PREMIUM checkout user ID: " . $user_id)->to(env('ADMIN_EMAIL'));
-    });
+    Mail::to(env('ADMIN_EMAIL'))->queue(
+        new PlainTextMail('New PREMIUM checkout user ID: ' . $user_id, $message)
+    );
 
-    echo(json_encode($session));
-    exit;
+    return response()->json($session);
 });
 
 
@@ -106,8 +104,7 @@ Route::middleware(['auth:sanctum', 'verified'])->post('/stripe_order_standard', 
     // @todo PR2: better rate limiter
     $orders_count = DB::table('cw_stripe_orders')->where('user_id', $user_id)->count();
 	if ($orders_count > 1000) {
-		echo("Too many attempts. Please contact support.");
-		exit();
+		return response()->json(['error' => 'Too many attempts. Please contact support.'], 429);
 	}
 
     $session = \Stripe\Checkout\Session::create([
@@ -129,12 +126,11 @@ Route::middleware(['auth:sanctum', 'verified'])->post('/stripe_order_standard', 
 
     // EMAIL NOTICE TO ADMIN
     $message = "User started the checkout session ID: " .  $session['id'];
-    Mail::raw($message, function ($message) use ($user_id) {
-        $message->subject("New STANDARD checkout user ID: " . $user_id)->to(env('ADMIN_EMAIL'));
-    });
+    Mail::to(env('ADMIN_EMAIL'))->queue(
+        new PlainTextMail('New STANDARD checkout user ID: ' . $user_id, $message)
+    );
 
-    echo(json_encode($session));
-    exit;
+    return response()->json($session);
 });
 
 
